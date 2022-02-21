@@ -1,0 +1,32 @@
+import Control.Monad
+main = do
+    putStrLn "Input Positive Integer"
+    start <- getLine
+    collatz (read start)
+    main -- Repeat program
+    
+collatz :: Integer -> IO ()
+collatz x = let y = collatzNext x in case y of
+    1 -> do
+        putStr (show y ++ "\n")
+        return () -- Reached 1 so end output
+    _ -> do
+        putStr (show y ++ ", ")
+        (collatz y) -- Repeat collatz procedure 
+     
+collatzNext :: Integer -> Integer    
+collatzNext x
+    | x <= 1         = 1
+    | x `mod` 2 == 0 = (x `div` 2)
+    | otherwise      = (3*x +1)
+    
+collatzList :: Integer -> [Integer]
+collatzList z = until ((1==). last) (\x -> x ++ [collatzNext (last x)]) [z]
+
+collatzStats :: Integer -> IO ()
+collatzStats x = let y = collatzList x in do
+    putStrLn (show x ++ " satisfies collatz")
+    putStrLn ("It requires " ++ (show $ length y) ++ " steps.")
+    putStrLn ("Highest number: " ++ (show $ maximum y))
+    putStrLn (show y)
+    return ()
