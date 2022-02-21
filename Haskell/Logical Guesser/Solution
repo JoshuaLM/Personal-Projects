@@ -1,0 +1,108 @@
+{- 
+Joshua Munro 993658
+
+This program implements functions for the searcher for the Proj2 game
+
+Approach
+
+The Proj2 game is a guessing game with the objective of guessing the location of
+three battleships that are hidden in three squares of a 4x8 grid. Each round,
+the guesser makes a guess of three squares, and the hider responds with three
+numbers with (1) the number of ships exactly located (2) the number of guesses
+exactly one space away from a ship and (3) the number of guesses that were
+exactly two spaces away from a ship. Each guess is only counted as its closest
+distance to any ship. The game ends when the guesser guesses exactly the
+positions of all the targets.
+
+Step 1: Store every possible solution
+
+Because the board is fairly small, it is possible to hold every possible 
+arrangement of battleships. For this reason I've defined the data type
+GameState as containing every possible configuration of battleships. Each round,
+the player makes a guess and receives feedback from this guess. This program
+filters out every arrangement that doesn't return this feedback.
+
+Step 2: Decide the solution using the lowest expected value of remaining 
+solutions
+
+The underlying probability of each arrangement is theoretically equal. That
+means you can look at the distribution of the probabilities of each result
+GIVEN that a particular guess is made. The sum of the square of the number each 
+feedback is returned, divided by the total number of guess, gives the
+expected number of remaining guesses after a particular guess. Thus the
+expected number of remaining guesses can be minimised by minimising this metric.
+chooseGuess & expectedGuesses implement this logic.
+
+-}
+module Proj2 (Location, Feedback, GameState, closestDistance, toLocation, 
+              fromLocation, feedback, initialGuess, nextGuess, chooseGuess,
+              expectedGuesses) where
+
+import Data.Char
+import Data.List
+import Data.Ord
+
+-- Location represents square on the board
+type Location = (Char, Int) 
+-- Gamestate is a list of possible location permutations of battleships
+type GameState = [[Location]]
+-- Feedback is triple representing the feedback for a guess
+type Feedback = (Int, Int, Int)
+
+-- toLocation takes a string and returns a Location if it is formatted
+-- correctly e.g. "A1" -> ('A',1), otherwise returns Nothing 
+-- e.g. "99"  -> Nothing
+toLocation :: String -> Maybe Location
+toLocation [x,y]
+    | (elem x ['A'..'H']) && (elem y ['1'..'4']) = Just (x, digitToInt y)
+toLocation _ = Nothing
+
+-- fromLocation takes a Location and returns the string representation
+-- e.g. ('A', 1) -> "A1"
+fromLocation :: Location -> String
+fromLocation (x, y) = x:(show y)
+
+-- feedback takes the real positions of ships and a guess and returns a triple
+-- representing the closest distance to a real ship from each guess of 0, 1 and
+-- 2 distance respectively
+feedback :: [Location] -> [Location] -> Feedback
+feedback target guess = (f 0, f 1, f 2)
+    where
+    distanceList = map (closestDistance target) guess
+    f n = length $ filter (== n) distanceList
+    
+-- closestDistance takes a list of targets and a guess and returns the smallest
+-- distance from the guess to any of the targets.
+closestDistance :: [Location] -> Location -> Int
+closestDistance targets (x, y) = minimum 
+    [max (abs ((ord x1) - (ord x))) (abs (y1 - y)) | (x1, y1) <- targets]
+
+-- Initial guess is A1 A3 H1 and my initial gamestate is a list of all
+-- permutations of positions of the three battleships
+initialGuess :: ([Location], GameState)
+initialGuess = ([('A',1),('A',3),('H',1)], perms)
+    where
+        squares = [(x,y) | x <- ['A'..'H'], y <- [1..4]]
+        perms   = [[x,y,z] | x <- squares, 
+                             y <- squares, x < y, 
+                             z <- squares, y < z]
+
+-- nextGuess takes a guess, a gamestate, and feedback about the guess and
+-- returns a new guess decided by chooseGuess and a smaller gamestate with 
+-- impossible solutions removed
+nextGuess :: ([Location], GameState) -> Feedback -> ([Location], GameState)
+nextGuess (currentGuess, possibleStates) result = 
+    let newGS = filter (\x -> feedback x currentGuess == result) possibleStates
+    in (chooseGuess newGS, newGS)
+    
+-- chooseGuess takes a gamestate chooses the next guess by minimising the 
+-- expected number of possibilities for the next guess.
+chooseGuess :: GameState -> [Location]
+chooseGuess rs = snd $ minimum $ map (expectedGuesses rs) rs
+
+-- expectedGuesses takes the gamestate and a candidate state and produces a 
+-- value-state pair representing the expected number of guesses. /T is omitted 
+-- as it is a constant
+expectedGuesses :: GameState -> [Location] -> (Int, [Location])
+expectedGuesses gs s 
+    = (sum $ map ((^2).length) $ group $ sort $ map (s `feedback`) gs, s)
