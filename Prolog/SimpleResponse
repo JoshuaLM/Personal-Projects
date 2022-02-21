@@ -1,0 +1,4 @@
+response :- write("\nAre you decisive?\n"), read(X), 
+    ((member(X, [yes,no]), write("great answer with "),write(X), write("!")); 
+    (member(X, [goomba]), write("okay *bonks your head*"));
+    write("i hate your answer!")),sleep(1), reponse.
