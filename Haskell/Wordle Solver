@@ -1,0 +1,92 @@
+-- Wordle Project
+import Data.Char
+import Data.List
+import Data.Ord
+import qualified Data.Text    as Text
+import qualified Data.Text.IO as Text
+
+-- For guessing
+main = do
+    contents <- readFile "words.txt"
+    let f = lines contents
+    putStrLn "Input first guess word (raise is recommended): "
+    wrd <- getLine
+    putStrLn "And now input feedback e.g. 0 0 0 0 0: "
+    fd <- getLine
+    let fdb = map read (words $ fd)
+    if fdb == [2,2,2,2,2] then putStrLn "winner!" else repeatRound (nextGuess (wrd, f) fdb) 2
+
+    
+repeatRound :: (Wordle, GameState) -> Int -> IO ()    
+repeatRound (w,gs) n = do
+    putStrLn ("Recommended word is " ++ w)
+    putStrLn "Input word: "
+    wrd <- getLine
+    putStrLn "Input feedback: "
+    fd <- getLine
+    let fdb = map read (words $ fd)
+    if fdb == [2,2,2,2,2] then putStrLn ("winner in " ++ (show n)) else repeatRound (nextGuess (wrd, gs) fdb) (n+1)
+
+-- For simulating
+main2 :: IO ()
+main2 = do
+    contents <- readFile "words.txt"
+    let f = lines contents
+    putStrLn "Input target word: "
+    wrd <- getLine
+    if ((length wrd) /= 5) then putStrLn "input is wrong length" else do
+        let fdb = feedback "raise" wrd
+        if fdb == [2,2,2,2,2] then putStrLn "winner!" else repeatRound2 ("raise", f) wrd 1
+
+    
+repeatRound2 ::  (Wordle, GameState) -> Wordle -> Int -> IO ()    
+repeatRound2 (w1,gs) w2 n = do
+    putStrLn ("Guessing " ++ w1)
+    let fdb = feedback w1 w2
+    putStrLn ("Feedback: " ++ (show fdb))
+    let ngs = nextGuess (w1, gs) fdb
+    if (snd ngs) == [] then putStrLn "not found" else
+        if fdb == [2,2,2,2,2] then putStrLn ("winner in " ++ (show n)) else repeatRound2 ngs w2 (n+1)
+
+    
+
+-- Feedback is a list of integers with 0 representing notInWord, 1 representing inWrongPlace, 2 representing inCorrectPlace
+type Feedback = [Int]
+-- Gamestate is a list of remaining possible words
+type GameState = [Wordle]
+-- Synonym
+type Wordle = String
+
+-- feedback takes respectively Word1 and Word2 and generates the feedback Word1 given Word2
+feedback :: Wordle -> Wordle -> Feedback
+feedback word1 word2 = map (feedbackMaker word1 word2) [0..(length word1) - 1]
+    
+-- feedbackMaker takes two words and a character and a integer position in the word and returns the feedback
+feedbackMaker :: Wordle -> Wordle -> Int -> Int
+feedbackMaker w1 w2 n 
+    | (w1 !! n) == (w2 !! n) = 2
+    | (w1 !! n) `elem` w2    = 1
+    | otherwise              = 0
+
+-- This is the hard-coded initial guess
+initialGuess :: (Wordle, GameState)
+initialGuess = ("price", wordList)
+    where wordList = ["hello","halos","hippy","hippo","price"] -- change to readfile or something idk
+
+
+nextGuess :: (Wordle, GameState) -> Feedback -> (Wordle, GameState)
+nextGuess (guess, possibleWords) result = 
+    let newGS = filter (\x -> feedback guess x == result) possibleWords
+    in (chooseGuess newGS, newGS)
+    
+-- chooseGuess takes a gamestate chooses the next guess by minimising the 
+-- expected number of possibilities for the next guess.
+chooseGuess :: GameState -> Wordle
+chooseGuess rs = snd $ minimum $ map (expectedGuesses rs) rs
+
+-- expectedGuesses takes the gamestate and a candidate state and produces a 
+-- value-state pair representing the expected number of guesses
+
+expectedGuesses :: GameState -> Wordle -> (Int, Wordle)
+expectedGuesses gs s 
+    = (sum $ map ((^2).length) $ group $ sort $ map (feedback s) gs, s)
